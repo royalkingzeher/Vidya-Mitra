@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
-// Signup schema
-const newUserSchema = new mongoose.Schema({
+// Register Schema
+const newuser = new mongoose.Schema({
     name: {
         type: String,
         required: true
@@ -21,15 +21,7 @@ const newUserSchema = new mongoose.Schema({
     },
 });
 
-// Middleware to ensure passwords match before saving
-newUserSchema.pre('save', function (next) {
-    if (this.password !== this.confirmPassword) {
-        const err = new Error("Passwords do not match");
-        return next(err);
-    }
-    next();
-});
 
-const Register = mongoose.model('Register', newUserSchema, 'Register');
+const register = mongoose.model('signup', newuser, 'signup');
 
-export { Register };
+export { register };

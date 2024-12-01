@@ -1,8 +1,10 @@
 import express from 'express';
+import session from 'express-session';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import multer from 'multer';
 import mongoose from 'mongoose';
-import { Register } from './schema.js'; // Import the Register model
+import { register } from './schema.js';  // Import the Register model
 import bcrypt from 'bcrypt';
 
 const app = express();
@@ -10,12 +12,9 @@ const router = express.Router();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Middleware to parse form data
 app.use(express.urlencoded({ extended: false }));
-app.use(express.json());
 
-// MongoDB Connection
+// Updated MongoDB connection string with your username and password
 await mongoose
   .connect('mongodb+srv://raghavmittal26113:ZawF0ydqqdWy3ILQ@cluster0.vufzf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
   .then(() => {
@@ -25,73 +24,89 @@ await mongoose
     console.log('Error in connecting to database:', error);
   });
 
-// Serve static files
-app.use(express.static(path.join(__dirname)));
+app.use(express.json());
 
-// Serve HTML files
-router.get('/home', (req, res) => {
-  res.sendFile(path.join(__dirname, 'home.html'));
+router.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'home.html')); //homepage
 });
 
-router.get('/signin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'login.html'));
-});
+// Uncomment HTML files from the root directory as you need
+//router.get('/home', (req, res) => {
+// res.sendFile(path.join(__dirname, '..', 'home.html'));  // Correct path to the root
+// });
 
-router.get('/register', (req, res) => {
-  res.sendFile(path.join(__dirname, 'register.html'));
-});
+//router.get('/signin', (req, res) => {
+//  res.sendFile(path.join(__dirname, '..', 'login.html'));  // Correct path to the root
+// });
 
-router.get('/about', (req, res) => {
-  res.sendFile(path.join(__dirname, 'about.html'));
-});
+// router.get('/register', (req, res) => {
+//  res.sendFile(path.join(__dirname, '..', 'register.html'));  // Correct path to the root
+// });
+
+// router.get('/about', (req, res) => {
+//  res.sendFile(path.join(__dirname, '..', 'about.html'));  // Correct path to the root
+// });
 
 // Register User
 router.post('/submit', async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
+  // Fetching data from signup page
+  const userData = req.body;
+  console.log(userData);
+  const verifyemail = userData.email;
 
-    // Check if email already exists
-    const existingUser = await Register.findOne({ email });
-    if (existingUser) {
-      return res.status(400).send('Email already exists. Please sign in.');
-    }
+  const existing_user = await register.findOne({ email: verifyemail });
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Save user to database
-    const newUser = new Register({ name, email, password: hashedPassword });
-    await newUser.save();
-
-    res.status(201).send('User registered successfully.');
-  } catch (error) {
-    console.error('Error registering user:', error);
-    res.status(500).send('Internal Server Error');
+  if (existing_user) {
+    console.log('Email already exists');
+    res.send('Email already exists, Signin');
+    return;
   }
+
+  const newuserdata = new register({
+    name: userData.name,
+    email: userData.email,
+    password: userData.password,
+  });
+
+  await newuserdata
+    .save()
+    .then(() => console.log('User registered'))
+    .catch(() => console.log('Error registering'));
+
+  res.send('Data received and user registered');
 });
 
-// Authenticate User
 router.post('/authenticateuser', async (req, res) => {
-  try {
-    const { email, password } = req.body;
+  // Fetching data from signin page
+  const authenticate = req.body;
+  const check_email = authenticate.email;
+  const verify_password = authenticate.password;
 
-    // Check if user exists
-    const user = await Register.findOne({ email });
-    if (!user) {
-      return res.status(400).send('Invalid email or password.');
+  const verify_email = await register.findOne({ email: check_email });
+
+  if (!verify_email) {
+    res.status(400).send('Wrong E-mail or Password');
+    return;
+  } else {
+    if (verify_password === verify_email.password) {
+      res.status(200).send('Successful User');
+      return;
+    } else {
+      console.log('Wrong e-mail or password');
+      res.status(400).send('Wrong e-mail or password');
+      return;
     }
-
-    // Compare passwords
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(400).send('Invalid email or password.');
-    }
-
-    res.status(200).send('User authenticated successfully.');
-  } catch (error) {
-    console.error('Error authenticating user:', error);
-    res.status(500).send('Internal Server Error');
   }
 });
+
+// Uncomment the following route if needed
+// router.post('/ques', async(req,res)=>{
+//     const saveques = new ques({
+//         email:req.session.email.email,
+//         ques:req.body.ques
+//     });
+//     await saveques.save().then(() => console.log('Question registered')).catch(() => console.log("Not registered Question"));
+//     res.send("Ques saved");
+// });
 
 export default router;
