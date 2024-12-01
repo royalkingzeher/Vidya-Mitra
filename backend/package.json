@@ -10,14 +10,14 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/Vaibhav-Rawat03/Minor-project1.git"
+        "url": "git+https://github.com/royalkingzeher/Vidya-Mitra.git"
     },
     "author": "Chitranshu, Devesh, Keshav, Raghav",
     "license": "ISC",
     "bugs": {
-        "url": "https://github.com/Vaibhav-Rawat03/Minor-project1/issues"
+        "url": "https://github.com/royalkingzeher/Vidya-Mitra/issues"
     },
-    "homepage": "https://github.com/Vaibhav-Rawat03/Minor-project1#readme",
+    "homepage": "https://github.com/royalkingzeher/Vidya-Mitra#readme",
     "dependencies": {
         "bcrypt": "^5.1.1",
         "dotenv": "^16.4.5",
