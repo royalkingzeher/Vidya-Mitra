@@ -8,18 +8,8 @@
         "start": "node index.js",
         "dev": "nodemon -L"
     },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/royalkingzeher/Vidya-Mitra.git"
-    },
-    "author": "Chitranshu, Devesh, Keshav, Raghav",
-    "license": "ISC",
-    "bugs": {
-        "url": "https://github.com/royalkingzeher/Vidya-Mitra/issues"
-    },
-    "homepage": "https://github.com/royalkingzeher/Vidya-Mitra#readme",
     "dependencies": {
-        "bcrypt": "^5.1.1",
+        "bcryptjs": "^2.4.3",
         "dotenv": "^16.4.5",
         "express": "^4.21.1",
         "express-session": "^1.17.3",
