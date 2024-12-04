@@ -1,4 +1,4 @@
-name: Deploy Agroclime to AWS
+name: Deploy Agroclime Website to AWS
 
 on:
   push:
@@ -6,8 +6,8 @@ on:
       - main
 
 jobs:
-  deploy-backend-and-frontend:
-    name: Configure EC2 and Deploy Application
+  deploy-website:
+    name: Configure EC2 and Deploy Static Website
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -18,57 +18,38 @@ jobs:
           echo "${{ secrets.EC2_PRIVATE_KEY }}" > majorproject.pem
           chmod 400 majorproject.pem
 
-      - name: Update Node.js to v20
-        env:
-          EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
-        run: |
-          ssh -o StrictHostKeyChecking=no -i majorproject.pem ec2-user@$EC2_PUBLIC_IP "curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash - && sudo yum install -y nodejs"
-
-      - name: Install Dependencies and Configure Nginx
+      - name: Install Nginx on EC2
         env:
           EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
         run: |
           ssh -o StrictHostKeyChecking=no -i majorproject.pem ec2-user@$EC2_PUBLIC_IP << 'EOF'
           sudo yum update -y
           sudo yum install -y nginx
-          sudo npm install -g pm2
           sudo systemctl start nginx
           sudo systemctl enable nginx
           EOF
 
-      - name: Create Application Directories on EC2
+      - name: Create Website Directory on EC2
         env:
           EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
         run: |
-          ssh -o StrictHostKeyChecking=no -i majorproject.pem ec2-user@$EC2_PUBLIC_IP "mkdir -p /home/ec2-user/backend"
+          ssh -o StrictHostKeyChecking=no -i majorproject.pem ec2-user@$EC2_PUBLIC_IP "sudo mkdir -p /usr/share/nginx/html && sudo rm -rf /usr/share/nginx/html/*"
 
-      - name: Copy Project Files to EC2
+      - name: Copy Website Files to EC2
         env:
           EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
         run: |
-          scp -i majorproject.pem -r ./backend ./css ./images ./js ./about.html ./contact.html ./courses.html ./home.html ./login.html ./playlist.html  ./playlist2.html ./playlist3.html ./playlist4.html ./playlist5.html ./playlist6.html ./profile.html ./register.html ./teacher_profile.html ./teachers.html ./update.html ./watch-video.html  ./watch2.html ./watch3.html ./watch4.html ./watch5.html ./watch6.html ./watch7.html ./watch8.html ./watch9.html ./watch10.html ./watch11.html ./watch12.html ./Jenkinsfile ec2-user@$EC2_PUBLIC_IP:/home/ec2-user/backend
+          scp -i majorproject.pem -r ./css ./images ./js ./about.html ./contact.html ./courses.html ./home.html ./login.html ./playlist.html ./playlist2.html ./playlist3.html ./playlist4.html ./playlist5.html ./playlist6.html ./profile.html ./register.html ./teacher_profile.html ./teachers.html ./update.html ./watch-video.html ./watch2.html ./watch3.html ./watch4.html ./watch5.html ./watch6.html ./watch7.html ./watch8.html ./watch9.html ./watch10.html ./watch11.html ./watch12.html ec2-user@$EC2_PUBLIC_IP:/tmp/
 
-      - name: Install Backend Dependencies and Fix Vulnerabilities
-        env:
-          EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
-        run: |
-          ssh -o StrictHostKeyChecking=no -i majorproject.pem ec2-user@$EC2_PUBLIC_IP << 'EOF'
-          cd /home/ec2-user/backend
-          npm install
-          npm audit fix --force || true
-          EOF
-
-      - name: Start Backend Application
+      - name: Move Files to Nginx Root
         env:
           EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
         run: |
           ssh -o StrictHostKeyChecking=no -i majorproject.pem ec2-user@$EC2_PUBLIC_IP << 'EOF'
-          cd /home/ec2-user/backend
-          pm2 delete server || true
-          pm2 start server.js --name server
+          sudo mv /tmp/* /usr/share/nginx/html/
           EOF
 
-      - name: Configure Nginx to Serve Application
+      - name: Configure Nginx for Static Website
         env:
           EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
         run: |
@@ -101,18 +82,11 @@ jobs:
                   listen 80;
                   server_name _;
 
-                  location / {
-                      proxy_pass http://127.0.0.1:3000;
-                      proxy_http_version 1.1;
-                      proxy_set_header Upgrade $http_upgrade;
-                      proxy_set_header Connection 'upgrade';
-                      proxy_set_header Host $host;
-                      proxy_cache_bypass $http_upgrade;
-                  }
+                  root /usr/share/nginx/html;
+                  index home.html;
 
-                  location /frontend/ {
-                      root /home/ec2-user/backend;
-                      index home.html;
+                  location / {
+                      try_files $uri $uri/ =404;
                   }
               }
           }
