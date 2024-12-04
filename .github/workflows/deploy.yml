@@ -1,0 +1,104 @@
+name: Deploy Agroclime Website to AWS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-website:
+    name: Configure EC2 and Deploy Static Website
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Create majorproject.pem from secret
+        run: |
+          echo "${{ secrets.EC2_PRIVATE_KEY }}" > majorproject.pem
+          chmod 400 majorproject.pem
+
+      - name: Install Nginx on EC2
+        env:
+          EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i majorproject.pem ec2-user@$EC2_PUBLIC_IP << 'EOF'
+          sudo yum update -y
+          sudo yum install -y nginx
+          sudo systemctl start nginx
+          sudo systemctl enable nginx
+          EOF
+
+      - name: Create Website Directory on EC2
+        env:
+          EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i majorproject.pem ec2-user@$EC2_PUBLIC_IP "sudo mkdir -p /usr/share/nginx/html && sudo rm -rf /usr/share/nginx/html/*"
+
+      - name: Copy Website Files to EC2
+        env:
+          EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
+        run: |
+          scp -i majorproject.pem -r ./css ./images ./js ./about.html ./contact.html ./courses.html ./home.html ./login.html ./playlist.html ./playlist2.html ./playlist3.html ./playlist4.html ./playlist5.html ./playlist6.html ./profile.html ./register.html ./teacher_profile.html ./teachers.html ./update.html ./watch-video.html ./watch2.html ./watch3.html ./watch4.html ./watch5.html ./watch6.html ./watch7.html ./watch8.html ./watch9.html ./watch10.html ./watch11.html ./watch12.html ec2-user@$EC2_PUBLIC_IP:/tmp/
+
+      - name: Move Files to Nginx Root
+        env:
+          EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i majorproject.pem ec2-user@$EC2_PUBLIC_IP << 'EOF'
+          sudo mv /tmp/* /usr/share/nginx/html/
+          EOF
+
+      - name: Configure Nginx for Static Website
+        env:
+          EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i majorproject.pem ec2-user@$EC2_PUBLIC_IP << 'EOF'
+          sudo bash -c 'cat > /etc/nginx/nginx.conf' << 'NGINX'
+          user nginx;
+          worker_processes auto;
+          error_log /var/log/nginx/error.log;
+          pid /run/nginx.pid;
+
+          events {
+              worker_connections 1024;
+          }
+
+          http {
+              types_hash_max_size 2048;
+              types_hash_bucket_size 128;
+
+              include       /etc/nginx/mime.types;
+              default_type  application/octet-stream;
+
+              log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                                '$status $body_bytes_sent "$http_referer" '
+                                '"$http_user_agent" "$http_x_forwarded_for"';
+
+              access_log  /var/log/nginx/access.log  main;
+
+              sendfile        on;
+              keepalive_timeout  65;
+              include /etc/nginx/conf.d/*.conf;
+
+              server {
+                  listen 80;
+                  server_name _;
+
+                  root /usr/share/nginx/html;
+                  index home.html;
+
+                  location / {
+                      try_files $uri $uri/ =404;
+                  }
+              }
+          }
+          NGINX
+          sudo nginx -t
+          sudo systemctl restart nginx
+          EOF
+
+      - name: Remove majorproject.pem
+        if: always()
+        run: |
+          rm -f majorproject.pem
