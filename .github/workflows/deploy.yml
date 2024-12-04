@@ -46,7 +46,7 @@ jobs:
         env:
           EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
         run: |
-          scp -i majorproject.pem -r ./backend ./css ./images ./js ./about.html ./contact.html ./courses.html ./home.html ./login.html ./playlist.html ./playlist1.html ./playlist2.html ./playlist3.html ./playlist4.html ./playlist5.html ./playlist6.html ./profile.html ./register.html ./teacher_profile.html ./teachers.html ./update.html ./watch-video.html ./watch1.html ./watch2.html ./watch3.html ./watch4.html ./watch5.html ./watch6.html ./watch7.html ./watch8.html ./watch9.html ./watch10.html ./watch11.html ./watch12.html ./Jenkinsfile ec2-user@$EC2_PUBLIC_IP:/home/ec2-user/backend
+          scp -i majorproject.pem -r ./backend ./css ./images ./js ./about.html ./contact.html ./courses.html ./home.html ./login.html ./playlist.html  ./playlist2.html ./playlist3.html ./playlist4.html ./playlist5.html ./playlist6.html ./profile.html ./register.html ./teacher_profile.html ./teachers.html ./update.html ./watch-video.html  ./watch2.html ./watch3.html ./watch4.html ./watch5.html ./watch6.html ./watch7.html ./watch8.html ./watch9.html ./watch10.html ./watch11.html ./watch12.html ./Jenkinsfile ec2-user@$EC2_PUBLIC_IP:/home/ec2-user/backend
 
       - name: Install Backend Dependencies and Fix Vulnerabilities
         env:
