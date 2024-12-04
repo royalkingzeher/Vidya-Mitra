@@ -1,0 +1,128 @@
+name: Deploy Agroclime to AWS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-backend-and-frontend:
+    name: Configure EC2 and Deploy Application
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Create Major.pem from secret
+        run: |
+          echo "${{ secrets.EC2_PRIVATE_KEY }}" > Major.pem
+          chmod 400 Major.pem
+
+      - name: Update Node.js to v20
+        env:
+          EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i Major.pem ec2-user@$EC2_PUBLIC_IP "curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash - && sudo yum install -y nodejs"
+
+      - name: Install Dependencies and Configure Nginx
+        env:
+          EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i Major.pem ec2-user@$EC2_PUBLIC_IP << 'EOF'
+          sudo yum update -y
+          sudo yum install -y nginx
+          sudo npm install -g pm2
+          sudo systemctl start nginx
+          sudo systemctl enable nginx
+          EOF
+
+      - name: Create Application Directories on EC2
+        env:
+          EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i Major.pem ec2-user@$EC2_PUBLIC_IP "mkdir -p /home/ec2-user/backend"
+
+      - name: Copy All Project Files to EC2
+        env:
+          EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
+        run: |
+          scp -i Major.pem -r ./controllers ./middlewares ./routes ./js ./css ./images ./db.js ./server.js ./package.json ./package-lock.json ./Jenkinsfile ./auth.js .env ec2-user@$EC2_PUBLIC_IP:/home/ec2-user/backend
+          scp -i Major.pem -r ./*.html ec2-user@$EC2_PUBLIC_IP:/home/ec2-user/backend
+
+      - name: Install Backend Dependencies and Fix Vulnerabilities
+        env:
+          EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i Major.pem ec2-user@$EC2_PUBLIC_IP << 'EOF'
+          cd /home/ec2-user/backend
+          npm install
+          npm audit fix --force || true
+          EOF
+
+      - name: Start Backend Application
+        env:
+          EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i Major.pem ec2-user@$EC2_PUBLIC_IP << 'EOF'
+          cd /home/ec2-user/backend
+          pm2 delete server || true
+          pm2 start server.js --name server
+          EOF
+
+      - name: Configure Nginx to Serve Application
+        env:
+          EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i Major.pem ec2-user@$EC2_PUBLIC_IP << 'EOF'
+          sudo bash -c 'cat > /etc/nginx/nginx.conf' << 'NGINX'
+          user nginx;
+          worker_processes auto;
+          error_log /var/log/nginx/error.log;
+          pid /run/nginx.pid;
+
+          events {
+              worker_connections 1024;
+          }
+
+          http {
+              include       /etc/nginx/mime.types;
+              default_type  application/octet-stream;
+
+              log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                                '$status $body_bytes_sent "$http_referer" '
+                                '"$http_user_agent" "$http_x_forwarded_for"';
+
+              access_log  /var/log/nginx/access.log  main;
+
+              sendfile        on;
+              keepalive_timeout  65;
+              include /etc/nginx/conf.d/*.conf;
+
+              server {
+                  listen 80;
+                  server_name _;
+
+                  location / {
+                      proxy_pass http://127.0.0.1:3000;
+                      proxy_http_version 1.1;
+                      proxy_set_header Upgrade $http_upgrade;
+                      proxy_set_header Connection 'upgrade';
+                      proxy_set_header Host $host;
+                      proxy_cache_bypass $http_upgrade;
+                  }
+
+                  location /frontend/ {
+                      root /home/ec2-user/backend;
+                      index index.html;
+                  }
+              }
+          }
+          NGINX
+          sudo nginx -t
+          sudo systemctl restart nginx
+          EOF
+
+      - name: Remove Major.pem
+        if: always()
+        run: |
+          rm -f Major.pem
